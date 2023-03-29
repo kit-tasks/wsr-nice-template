@@ -1,0 +1,25 @@
+.body {
+    background-color: #f9f9f9;
+}
+.mh {
+    margin-top: 100px;
+}
+.mr {
+    margin-right: 10px;
+}
+.mb {
+    margin-bottom: 10px;
+}
+.container {
+    display: flex;
+    justify-content: center;
+}
+.header {
+    text-align: center;
+}
+.row-block {
+    width: 500px;
+    margin: 6px;
+    padding: 16px;
+    background-color: white;
+}
