@@ -13,42 +13,38 @@ contract CMON is ERC20 {
         
     }
 
+
+
     enum phases {notstarted, seed, privatePhase, publicPhase}
     enum roles {common, owner, privateProvider, publicProvider}
 
-    address _owner;
 
-    // role management
+
     mapping (address=>roles) _roleID;
-    
-    modifier checkOwner() {
-        require(_roleID[msg.sender] == roles.owner, "you don't owner");
-        _;
-    }
-    modifier checkPrivateProvider() {
-        require(_roleID[msg.sender] == roles.privateProvider, "you don't private provider");
-        _;
-    }
-    modifier checkPublicProvider() {
-        require(_roleID[msg.sender] == roles.publicProvider, "you don't public provider");
-        _;
-    }
+    mapping (address=>bool) whitelist;
+    mapping (phases=>uint) owner_limit;
+    mapping (uint=>Request) reqMap;
 
-    function getRoleID(address user) public view returns (roles) {
-        return _roleID[user];
-    }
 
+
+    address _owner;
     // time management
     uint time_start = 0;
-    function time_now() public view returns(uint) { return block.timestamp; } 
-    function time_system() public view returns(uint) { 
-        if (time_start == 0) {
-            return 0;
-        } else {
-            return time_now() + time_dif * 1 minutes; 
-        }
-    }
     uint time_dif = 0;
+    // investistions
+    uint microether = 1e12;
+    uint privateCost = 750 * microether;
+    uint publicCost = 1000 * microether;
+    // token managament
+    uint owner_limit_seed = 1000000;
+    uint owner_limit_private = 3000000;
+    uint owner_limit_public = 6000000;
+    uint limit_private = 3000000;
+    uint limit_public = 6000000;
+    // private
+    uint reqIDs;
+
+
 
     struct State {
         uint time_start;
@@ -56,6 +52,67 @@ contract CMON is ERC20 {
         uint time_system;
         uint time_dif;
         phases phase;
+    }
+
+    struct Request {
+        uint id;
+        string name;
+        address userAddr;
+    }
+
+
+
+    modifier checkOwner() {
+        require(_roleID[msg.sender] == roles.owner, "you don't owner");
+        _;
+    }
+
+    modifier checkPrivateProvider() {
+        require(_roleID[msg.sender] == roles.privateProvider, "you don't private provider");
+        _;
+    }
+
+    modifier checkPublicProvider() {
+        require(_roleID[msg.sender] == roles.publicProvider, "you don't public provider");
+        _;
+    }
+
+    modifier checkLimits(address _from, uint _value) {
+        phases phase = calcPhase();
+        require(phase >= phases.seed, "Not started");
+        uint limit;
+        if (_owner == _from) {
+            limit = owner_limit[phase];
+            owner_limit[phase] -= _value;
+        } else {
+            if (phase == phases.seed) {
+                require(_from == _owner, "Not started");
+            } else if (phase == phases.seed) {
+                limit = limit_private;
+            } else {
+                limit = limit_public;
+            }
+        }
+        require(_value < limit, "too much");
+        _;
+    }
+    
+
+
+    function getRoleID(address user) public view returns (roles) {
+        return _roleID[user];
+    }
+
+    function time_now() public view returns(uint) {
+        return block.timestamp;
+    }
+
+    function time_system() public view returns(uint) { 
+        if (time_start == 0) {
+            return 0;
+        } else {
+            return time_now() + time_dif * 1 minutes; 
+        }
     }
 
     function calcPhase() public view returns(phases phase) {
@@ -72,27 +129,23 @@ contract CMON is ERC20 {
 
     function getState() public view returns(State memory) {
         return State(time_start, time_now(), time_system(), time_dif, calcPhase());
-    } 
-
-    function upDif(uint amount) public {
-        time_dif += amount;
     }
+    
+     
 
     function init() public checkOwner {
         time_start = block.timestamp;
     }
 
-    // investistions
-    uint microether = 1e12;
-    uint privateCost = 750 * microether;
-    uint publicCost = 1000 * microether;
-
-    mapping (address=>bool) whitelist;
+    function upDif(uint amount) public {
+        time_dif += amount;
+    }
     
     function changePublicCost(uint microetherAmount) public checkPublicProvider {
         publicCost = microetherAmount * microether;
     }
 
+    // investitions
     function reward(address _to, uint _amount) public checkPublicProvider {
         transferFrom(_owner, _to, _amount);
     }
@@ -108,17 +161,7 @@ contract CMON is ERC20 {
         transferFrom(_owner, msg.sender, amount);
     }
 
-    // private
-
-    uint reqIDs;
-    mapping (uint=>Request) reqMap;
-
-    struct Request {
-        uint id;
-        string name;
-        address userAddr;
-    }
-
+    // whitelist
     function sendRequest(string memory name) public {
         require(!whitelist[msg.sender], "you already in whitelist");
         reqMap[reqIDs] = Request(reqIDs, name, msg.sender);
@@ -148,35 +191,7 @@ contract CMON is ERC20 {
         delete reqMap[reqID];
     }
 
-    // token managament
-    uint owner_limit_seed = 1000000;
-    uint owner_limit_private = 3000000;
-    uint owner_limit_public = 6000000;
-
-    mapping (phases=>uint) owner_limit;
-
-    uint limit_private = 3000000;
-    uint limit_public = 6000000;
-
-    modifier checkLimits(address _from, uint _value) {
-        phases phase = calcPhase();
-        require(phase >= phases.seed, "Not started");
-        uint limit;
-        if (_owner == _from) {
-            limit = owner_limit[phase];
-            owner_limit[phase] -= _value;
-        } else {
-            if (phase == phases.seed) {
-                require(_from == _owner, "Not started");
-            } else if (phase == phases.seed) {
-                limit = limit_private;
-            } else {
-                limit = limit_public;
-            }
-        }
-        require(_value < limit, "too much");
-        _;
-    }
+    // overriding
     function transferFrom(address _from, address _to, uint256 _value) public override(ERC20) checkLimits(_from, _value) returns (bool success) {
         super.transferFrom(_from, _to, _value);
         success = true;
